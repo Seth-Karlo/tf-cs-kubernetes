@@ -1,23 +1,36 @@
-variable "access_key" { 
- description = "CS API key"
+variable "cs_cidrs" {
+  default = {
+    network = "192.168.10.0/24"
+  }
 }
 
-variable "secret_key" { 
- description = "CS secret key"
+variable "cs_zones" {
+  default = {
+    network = "NL2"
+    master = "NL2"
+    worker = "NL2"
+  }
 }
 
-variable "ms_host" { 
- description = "Management Server IP"
+variable "offerings" {
+  default = {
+    master = "mcc_v1.1vCPU.4GB.SBP1"
+    worker = "mcc_v1.1vCPU.4GB.SBP1"
+    network = "MCC-VPC-LB"
+  }
 }
 
-variable "cs_offering" {
-	description = "Cloudstack compute offering"
-	default = "mcc_v1.1vCPU.4GB.SBP1"
+variable "counts" {
+  default = {
+    network = "1"
+    master = "1"
+    worker = "1"
+    public_ip = "2"
+  }
 }
 
 variable "cs_template" {
-	decription = "Cloudstack CoreOS template"
-	default = "coreos-cs-boul-1"
+	default = ""
 }
 
 variable "cs_zone" {

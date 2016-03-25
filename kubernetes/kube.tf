@@ -1,275 +1,112 @@
 provider "cloudstack" {
- api_url   = "https://${var.ms_host}/client/api"
- api_key = "${var.access_key}"
- secret_key = "${var.secret_key}"
+    api_key       =  "${replace("${file("~/.terraform/nl2_cs_api_key")}", "\n", "")}"
+    secret_key    =  "${replace("${file("~/.terraform/nl2_cs_secret_key")}", "\n", "")}"
+    api_url       =  "https://nl2.mcc.schubergphilis.com/client/api"
 }
 
 resource "cloudstack_ssh_keypair" "kubernetes_coreos" {
   name = "kubernetes_coreos"
-  
 }
 
-resource "cloudstack_network" "Network01" {
-    name = "kubernetes-1"
-    display_text = "nubernetes-1"
-    cidr = "192.168.1.0/24"
-    network_offering = "SourceNatNiciraNvpNetwork"
-    zone = "${var.cs_zone}"
+resource "cloudstack_network" "network" {
+    count = "${lookup(var.counts, "network")}"
+    name = "kubernetes-network${count.index+1}"
+    display_text = "kubernetes-network${count.index+1}"
+    cidr = "${lookup(var.cs_cidrs, "network")}"
+    network_offering = "${lookup(var.offerings, "network")}"
+    zone = "${lookup(var.cs_zones, "network")}"
 }
 
-
-
-resource "cloudstack_instance" "kube-master-01" {
-  zone = "${var.cs_zone}"
-  service_offering = "${var.cs_offering}"
+resource "cloudstack_instance" "kube-master" {
+  count = "${lookup(var.counts, "master")}"
+  zone = "${lookup(var.cs_zones, "master")}"
+  service_offering = "${lookup(var.offerings, "master")}"
   template = "${var.cs_template}"
-  name = "kube-master-01"
-  network = "${cloudstack_network.Network01.id}"
+  name = "kube-master-${count.index+1}"
+  network = "${cloudstack_network.network.0.id}"
   expunge = "true"
   ipaddress = "192.168.1.10"
   user_data = "${file("../cloud-config/master.yaml")}"
   keypair = "kubernetes_coreos"
 
   provisioner "local-exec" {
-        command = "cd ../ssl/ && ./generate-keys.sh"
-    }
+    command = "cd ../ssl/ && ./generate-keys.sh"
+  }
 }
 
-
 resource "null_resource" "provision_master" {
-
   depends_on = ["cloudstack_port_forward.ssh_api_server"]
-
+  count = "${lookup(var.counts, "master")}"
+  
   provisioner "remote-exec" {
-        inline = ["sudo mkdir -p /etc/kubernetes/ssl"]
-        connection {
-          host = "${cloudstack_ipaddress.public_ip.ipaddress}"
-          user = "core"
-          private_key = "${cloudstack_ssh_keypair.kubernetes_coreos.private_key}"
-
-         
-     }
-    }
+    inline = ["sudo mkdir -p /etc/kubernetes/ssl"]
+  }
 
   provisioner "file" {
-        source = "/tmp/kube-ssl"
-        destination = "~/kube-ssl"
-        connection {
-          host = "${cloudstack_ipaddress.public_ip.ipaddress}"
-          user = "core"
-          private_key = "${cloudstack_ssh_keypair.kubernetes_coreos.private_key}"
+    source = "/tmp/kube-ssl"
+    destination = "~/kube-ssl"
+  }
 
-
-
-         
-     }
-    }
-provisioner "remote-exec" {
+  provisioner "remote-exec" {
         inline = ["sudo mv ~/kube-ssl/*.pem /etc/kubernetes/ssl",
         "sudo chmod 600 /etc/kubernetes/ssl/*-key.pem",
         "sudo chown root:root /etc/kubernetes/ssl/*-key.pem",
         "sudo systemctl daemon-reload"
         ]
-        connection {
-          host = "${cloudstack_ipaddress.public_ip.ipaddress}"
-          user = "core"
-          private_key = "${cloudstack_ssh_keypair.kubernetes_coreos.private_key}"
-          
- 
+  }
 
+  connection {
+    host = "${cloudstack_ipaddress.public_ip.ipaddress}"
+    user = "core"
+    private_key = "${cloudstack_ssh_keypair.kubernetes_coreos.private_key}"
   }
 }
-}
 
-  # provisioner "file" {
-  #       source = "../manifests"
-  #       destination = "~/manifests"
-  #       connection {
-  #         host = "${cloudstack_ipaddress.public_ip.ipaddress}"
-  #         user = "core"
-         
-  #    }
-  #   }
-
-  # provisioner "file" {
-  #       source = "/tmp/apiserver.pem"
-  #       destination = "~/apiserver.pem"
-  #       connection {
-  #         host = "${cloudstack_ipaddress.public_ip.ipaddress}"
-  #         user = "core"
-          
-  #    }
-  #   }
-
-  # provisioner "file" {
-  #       source = "/tmp/apiserver-key.pem"
-  #       destination = "~/apiserver-key.pem"
-  #       connection {
-  #         host = "${cloudstack_ipaddress.public_ip.ipaddress}"
-  #         user = "core"
-          
-  #    }
-  #   }
-
-  
-
-
-# resource "null_resource" "execute" {
-
-#   depends_on = ["null_resource.provision_certs_manifests"]
-#   provisioner "remote-exec" {
-#         inline = ["sudo mv ~/kube-ssl/*.pem /etc/kubernetes/ssl",
-#         "sudo chmod 600 /etc/kubernetes/ssl/*-key.pem",
-#         "sudo chown root:root /etc/kubernetes/ssl/*-key.pem",
-#         "sudo systemctl daemon-reload"
-#         ]
-#         connection {
-#           host = "${cloudstack_ipaddress.public_ip.ipaddress}"
-#           user = "core"
-#           private_key = "${cloudstack_ssh_keypair.kubernetes_coreos}"
-          
- 
-
-#   }
-# }
-# }
-
-resource "cloudstack_instance" "kube-worker-01" {
-  depends_on = ["cloudstack_instance.kube-master-01"]
-  zone = "${var.cs_zone}"
-  service_offering = "${var.cs_offering}"
+resource "cloudstack_instance" "kube-worker" {
+  depends_on = ["cloudstack_instance.kube-master"]
+  count = "${lookup(var.counts, "worker")}"
+  zone = "${lookup(var.cs_zones, "worker")}"
+  service_offering = "${lookup(var.offerings, "worker")}"
   template = "${var.cs_template}"
-  name = "kube-worker-01"
-  network = "${cloudstack_network.Network01.id}"
+  name = "kube-worker-${count.index+1}"
+  network = "${cloudstack_network.network.0.id}"
   expunge = "true"
-  ipaddress = "192.168.1.11"
   user_data = "${file("../cloud-config/node.yaml")}"
   keypair = "kubernetes_coreos"
-
- 
 }
 
-resource "null_resource" "provision-worker-01"{
-  depends_on = ["cloudstack_instance.kube-worker-01"]
+resource "null_resource" "provision-worker"{
+  depends_on = ["cloudstack_instance.kube-worker"]
   depends_on = ["cloudstack_port_forward.ssh_api_server"]
+  count = "${lookup(var.counts, "worker")}"
    
-   provisioner "remote-exec" {
-        inline = ["sudo mkdir -p /etc/kubernetes/ssl"]
-        connection {
-          host = "${cloudstack_ipaddress.public_ip.ipaddress}"
-          user = "core"
-          port = 2222
-          private_key = "${cloudstack_ssh_keypair.kubernetes_coreos.private_key}"
-
-         
-     }
-    }
+  provisioner "remote-exec" {
+    inline = ["sudo mkdir -p /etc/kubernetes/ssl"]
+  }
 
   provisioner "file" {
-        source = "/tmp/kube-ssl"
-        destination = "~/kube-ssl"
-        connection {
-          host = "${cloudstack_ipaddress.public_ip.ipaddress}"
-          user = "core"
-          port = 2222
-          private_key = "${cloudstack_ssh_keypair.kubernetes_coreos.private_key}"
-
-
-
-         
-     }
-    }
-provisioner "remote-exec" {
-        inline = ["sudo mv ~/kube-ssl/*.pem /etc/kubernetes/ssl",
+    source = "/tmp/kube-ssl"
+    destination = "~/kube-ssl"
+  }
+  
+  provisioner "remote-exec" {
+    inline = ["sudo mv ~/kube-ssl/*.pem /etc/kubernetes/ssl",
         "sudo chmod 600 /etc/kubernetes/ssl/*-key.pem",
         "sudo chown root:root /etc/kubernetes/ssl/*-key.pem",
         "cd /etc/kubernetes/ssl/ && sudo ln -s kube-worker-1-worker.pem worker.pem && sudo ln -s kube-worker-1-worker-key.pem worker-key.pem",
         "sudo systemctl daemon-reload"
-        ]
-        connection {
-          host = "${cloudstack_ipaddress.public_ip.ipaddress}"
-          user = "core"
-          port = 2222
-          private_key = "${cloudstack_ssh_keypair.kubernetes_coreos.private_key}"
-          
- 
-
+    ]
+    }
+  connection {
+    host = "${cloudstack_ipaddress.public_ip.ipaddress}"
+    user = "core"
+    port = 2222
+    private_key = "${cloudstack_ssh_keypair.kubernetes_coreos.private_key}"
   }
 }
-}
 
-
-resource "cloudstack_instance" "kube-worker-02" {
-  depends_on =["cloudstack_instance.kube-master-01"]
-  zone = "${var.cs_zone}"
-  service_offering = "${var.cs_offering}"
-  template = "${var.cs_template}"
-  name = "kube-worker-02"
-  network = "${cloudstack_network.Network01.id}"
-  expunge = "true"
-  ipaddress = "192.168.1.12"
-  user_data = "${file("../cloud-config/node.yaml")}"
-  keypair = "kubernetes_coreos"
-
-  
-}
-
-resource "null_resource" "provision-worker-02" {
-  depends_on = ["cloudstack_instance.kube-worker-02"]
-  depends_on = ["cloudstack_port_forward.ssh_api_server"]
- 
-  provisioner "remote-exec" {
-        inline = ["sudo mkdir -p /etc/kubernetes/ssl"]
-        connection {
-          host = "${cloudstack_ipaddress.public_ip.ipaddress}"
-          user = "core"
-          port = 3222
-          private_key = "${cloudstack_ssh_keypair.kubernetes_coreos.private_key}"
-
-         
-     }
-    }
-
-  provisioner "file" {
-        source = "/tmp/kube-ssl"
-        destination = "~/kube-ssl"
-        connection {
-          host = "${cloudstack_ipaddress.public_ip.ipaddress}"
-          user = "core"
-          port = 3222
-          private_key = "${cloudstack_ssh_keypair.kubernetes_coreos.private_key}"
-
-
-
-         
-     }
-    }
-provisioner "remote-exec" {
-        inline = ["sudo mv ~/kube-ssl/*.pem /etc/kubernetes/ssl",
-        "sudo chmod 600 /etc/kubernetes/ssl/*-key.pem",
-        "sudo chown root:root /etc/kubernetes/ssl/*-key.pem",
-        "cd /etc/kubernetes/ssl/ && sudo ln -s kube-worker-2-worker.pem worker.pem && sudo ln -s kube-worker-2-worker-key.pem worker-key.pem",
-        "sudo systemctl daemon-reload"
-        ]
-        connection {
-          host = "${cloudstack_ipaddress.public_ip.ipaddress}"
-          user = "core"
-          port = 3222
-          private_key = "${cloudstack_ssh_keypair.kubernetes_coreos.private_key}"
-          
- 
-
-  }
-}
-}
-
-resource "cloudstack_ipaddress" "public_ip" {
-  network = "${cloudstack_network.Network01.id}"
-  depends_on = ["cloudstack_instance.kube-master-01"]
-}
-
-resource "cloudstack_firewall" "public_ip" {
-  ipaddress = "${cloudstack_ipaddress.public_ip.id}"
+resource "cloudstack_firewall" "firewall" {
+  ipaddress = "${cloudstack_ipaddress.public_ip.0.id}"
 
   rule {
     source_cidr = "84.105.28.192/32"
@@ -285,7 +122,7 @@ resource "cloudstack_firewall" "public_ip" {
 }
 
 resource "cloudstack_egress_firewall" "egress1" {
-  network = "kubernetes-1"
+  network = "${cloudstack_network.network.0.name}"
 
   rule {
     source_cidr = "0.0.0.0/0"
@@ -303,56 +140,47 @@ resource "cloudstack_egress_firewall" "egress1" {
   }
 }
 
+resource "cloudstack_ipaddress" "public_ip" {
+  count = "${lookup(var.counts, "public_ip")}"
+  network = "${cloudstack_network.network.0.id}"
+  depends_on = ["cloudstack_instance.kube-master"]
+  depends_on = ["cloudstack_instance.kube-worker"]
+}
 
-resource "cloudstack_port_forward" "ssh_api_server" {
-  ipaddress = "${cloudstack_ipaddress.public_ip.id}"
-  depends_on = ["cloudstack_firewall.public_ip"]
-  depends_on = ["cloudstack_instance.kube-master-01"]
-  depends_on = ["cloudstack_instance.kube-worker-01"]
-  depends_on = ["cloudstack_instance.kube-worker-02"]
-
-
-  forward {
-    protocol = "tcp"
-    private_port = "22"
-    public_port = "1222"
-    virtual_machine = "kube-master-01"
-  }
-
+resource "cloudstack_port_forward" "worker-1" {
+  ipaddress = "${cloudstack_ipaddress.public_ip.1.id}"
+  depends_on = ["cloudstack_firewall.firewall"]
+  depends_on = ["cloudstack_instance.kube-worker"]
 
   forward {
     protocol = "tcp"
     private_port = "22"
     public_port = "22"
-    virtual_machine = "kube-master-01"
+    virtual_machine = "kube-worker-1"
   }
+}
+
+resource "cloudstack_port_forward" "ssh_api_server" {
+  ipaddress = "${cloudstack_ipaddress.public_ip.0.id}"
+  depends_on = ["cloudstack_firewall.firewall"]
+  depends_on = ["cloudstack_instance.kube-master"]
 
   forward {
     protocol = "tcp"
     private_port = "22"
-    public_port = "2222"
-    virtual_machine = "kube-worker-01"
+    public_port = "22"
+    virtual_machine = "kube-master-1"
   }
-
-  forward {
-    protocol = "tcp"
-    private_port = "22"
-    public_port = "3222"
-    virtual_machine = "kube-worker-02"
-  }
-
   forward {
     protocol = "tcp"
     private_port = "8080"
     public_port = "8080"
-    virtual_machine = "kube-master-01"
+    virtual_machine = "kube-master-1"
   }
   forward {
     protocol = "tcp"
     private_port = "6443"
     public_port = "6443"
-    virtual_machine = "kube-master-01"
+    virtual_machine = "kube-master-1"
   }
 }
-
-
