@@ -8,6 +8,24 @@ resource "cloudstack_ssh_keypair" "kubernetes_coreos" {
   name = "kubernetes_coreos"
 }
 
+resource "template_file" "master-config" {
+    count = "${lookup(var.counts, "master")}"
+    template = "${file("master.yaml.tpl")}"
+    vars {
+      terraform_discovery_url = "${var.discovery_url}"
+      terraform_hostname = "kube-master-1"
+    }
+}
+
+resource "template_file" "node-config" {
+    count = 2
+    template = "${file("node.yaml.tpl")}"
+    vars {
+      terraform_master_ip = "${cloudstack_instance.master.ipaddress}"
+      terraform_discovery_url = "${var.discovery_url}"
+    }
+}
+
 resource "cloudstack_network" "network" {
     count = "${lookup(var.counts, "network")}"
     name = "kubernetes-network${count.index+1}"
@@ -25,41 +43,8 @@ resource "cloudstack_instance" "kube-master" {
   name = "kube-master-${count.index+1}"
   network = "${cloudstack_network.network.0.id}"
   expunge = "true"
-  ipaddress = "192.168.1.10"
   user_data = "${file("../cloud-config/master.yaml")}"
   keypair = "kubernetes_coreos"
-
-  provisioner "local-exec" {
-    command = "cd ../ssl/ && ./generate-keys.sh"
-  }
-}
-
-resource "null_resource" "provision_master" {
-  depends_on = ["cloudstack_port_forward.ssh_api_server"]
-  count = "${lookup(var.counts, "master")}"
-  
-  provisioner "remote-exec" {
-    inline = ["sudo mkdir -p /etc/kubernetes/ssl"]
-  }
-
-  provisioner "file" {
-    source = "/tmp/kube-ssl"
-    destination = "~/kube-ssl"
-  }
-
-  provisioner "remote-exec" {
-        inline = ["sudo mv ~/kube-ssl/*.pem /etc/kubernetes/ssl",
-        "sudo chmod 600 /etc/kubernetes/ssl/*-key.pem",
-        "sudo chown root:root /etc/kubernetes/ssl/*-key.pem",
-        "sudo systemctl daemon-reload"
-        ]
-  }
-
-  connection {
-    host = "${cloudstack_ipaddress.public_ip.ipaddress}"
-    user = "core"
-    private_key = "${cloudstack_ssh_keypair.kubernetes_coreos.private_key}"
-  }
 }
 
 resource "cloudstack_instance" "kube-worker" {
@@ -73,36 +58,6 @@ resource "cloudstack_instance" "kube-worker" {
   expunge = "true"
   user_data = "${file("../cloud-config/node.yaml")}"
   keypair = "kubernetes_coreos"
-}
-
-resource "null_resource" "provision-worker"{
-  depends_on = ["cloudstack_instance.kube-worker"]
-  depends_on = ["cloudstack_port_forward.ssh_api_server"]
-  count = "${lookup(var.counts, "worker")}"
-   
-  provisioner "remote-exec" {
-    inline = ["sudo mkdir -p /etc/kubernetes/ssl"]
-  }
-
-  provisioner "file" {
-    source = "/tmp/kube-ssl"
-    destination = "~/kube-ssl"
-  }
-  
-  provisioner "remote-exec" {
-    inline = ["sudo mv ~/kube-ssl/*.pem /etc/kubernetes/ssl",
-        "sudo chmod 600 /etc/kubernetes/ssl/*-key.pem",
-        "sudo chown root:root /etc/kubernetes/ssl/*-key.pem",
-        "cd /etc/kubernetes/ssl/ && sudo ln -s kube-worker-1-worker.pem worker.pem && sudo ln -s kube-worker-1-worker-key.pem worker-key.pem",
-        "sudo systemctl daemon-reload"
-    ]
-    }
-  connection {
-    host = "${cloudstack_ipaddress.public_ip.ipaddress}"
-    user = "core"
-    port = 2222
-    private_key = "${cloudstack_ssh_keypair.kubernetes_coreos.private_key}"
-  }
 }
 
 resource "cloudstack_firewall" "firewall" {

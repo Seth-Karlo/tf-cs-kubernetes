@@ -18,18 +18,16 @@ write-files:
         done;
       exit $?
 
-hostname: kube-master
-ssh_authorized_keys:
-  - ssh-rsa AAAAB3NzaC1yc2EAAAABJQAAAgEAj/rzBLHFU6+BDQ54oL0lboD8k6kRnq0b/a+xuasF53Y3GrM/CWT064CnD2F2Itsv2SDUR4ngzOS8oRNxxQWsz5E2GHhGID3eYEmmhabdoJV2oa5KSfYBcVxi4WcrNZCeJuqETJ+wSntJ6ooJKCpm0GuXCw+MDHX1n5OT7roZt2k/hAKJhlz6tw7lNoXZGwnvXFoiMrJJY64jT2Umn2xcqm8ZHZ+lVOozowYgr6J3HzOwGAkIAxeWkVxhK7g4X5QLwwkwZ6b/D0gf4jA7hlk7IytZUpdoksP+VST1pbPa1LFjOu26vmSfozZNWQLBuzd6G5uWBYbSunQVS92xUv9Nf5JVeKPCt1M/5NW7ASfDiaryMT5sPfz0Fn3JXcPEbzShKgJaCMo5mApVoVt+zz99QTKVFQxkrNFXw3nGhCT3rEIKmmg2hJt9843W1tIboaCLhHUyTH+v1RHK/jwSwSLSR5AIooe6vgSaFQVUIHtag+C2BwBnuJLaxaljCoLfrT0YatKO9paZhf7uPYR5D4ocYktmhNHZXpCXitWjyQbGMXUICPAeUahxDR1HPG3GXIXV5mKDOyqkOdqaODvKsQ7MUiXUoibxpfHwqqKbr4rFIlp2HbOAfyy346voyzdhUnTwSMxB9bXvGygMAI8EkB6Fi43MAUp2W1+JgiD1Y0J4jSM=
+hostname: ${terraform_hostname}
 coreos:
   etcd2:
     name: master
     listen-client-urls: http://0.0.0.0:2379,http://0.0.0.0:4001
-    advertise-client-urls: http://192.168.1.10:2379,http://192.168.1.10:4001
+    advertise-client-urls: http://$private_ipv4:2379,http://$private_ipv4:4001
     initial-cluster-token: k8s_etcd
-    listen-peer-urls: http://192.168.1.10:2380,http://192.168.1.10:7001
-    initial-advertise-peer-urls: http://192.168.1.10:2380
-    initial-cluster: master=http://192.168.1.10:2380
+    listen-peer-urls: http://$private_ipv4:2380,http://$private_ipv4:7001
+    initial-advertise-peer-urls: http://$private_ipv4:2380
+    initial-cluster: master=http://$private_ipv4:2380
     initial-cluster-state: new
   fleet:
     metadata: "role=master"
@@ -73,7 +71,7 @@ coreos:
             [Unit]
             Requires=etcd2.service
             [Service]
-            ExecStartPre=/usr/bin/etcdctl set /coreos.com/network/config '{"Network":"10.244.0.0/16", "Backend": {"Type": "vxlan"}}'
+            ExecStartPre=/usr/bin/etcdctl set /coreos.com/network/config '{"Network":"10.124.0.0/16", "Backend": {"Type": "vxlan"}}'
     - name: docker.service
       command: start
     - name: kube-apiserver.service
