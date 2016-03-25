@@ -1,6 +1,7 @@
 variable "cs_cidrs" {
   default = {
-    network = "192.168.10.0/24"
+    vpc = "10.100.0.0/16"
+    network = "10.100.0.0/24"
   }
 }
 
@@ -9,6 +10,7 @@ variable "cs_zones" {
     network = "NL2"
     master = "NL2"
     worker = "NL2"
+    vpc = "NL2"
   }
 }
 
@@ -17,11 +19,13 @@ variable "offerings" {
     master = "mcc_v1.1vCPU.4GB.SBP1"
     worker = "mcc_v1.1vCPU.4GB.SBP1"
     network = "MCC-VPC-LB"
+    vpc = "MCC-VPC-SBP1"
   }
 }
 
 variable "counts" {
   default = {
+    vpc = "1"
     network = "1"
     master = "1"
     worker = "1"
@@ -30,10 +34,6 @@ variable "counts" {
 }
 
 variable "cs_template" {
-	default = ""
+	default = "Linux-gnu-x86_64-Coreos-XenServer-latest"
 }
 
-variable "cs_zone" {
-	description = "Cloudstack Zone"
-	default = "BETA-SBP-DC-1"
-}

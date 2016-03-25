@@ -20,13 +20,22 @@ resource "template_file" "node-config" {
     }
 }
 
+resource "cloudstack_vpc" "vpc" {
+  count = "${lookup(var.counts, "vpc")}"
+  name = "kubernetes-vpc${count.index+1}"
+  cidr = "${lookup(var.cs_cidrs, "vpc")}"
+  vpc_offering = "${lookup(var.offerings, "vpc")}"
+  zone = "${lookup(var.cs_zones, "vpc")}"
+}
+
 resource "cloudstack_network" "network" {
-    count = "${lookup(var.counts, "network")}"
-    name = "kubernetes-network${count.index+1}"
-    display_text = "kubernetes-network${count.index+1}"
-    cidr = "${lookup(var.cs_cidrs, "network")}"
-    network_offering = "${lookup(var.offerings, "network")}"
-    zone = "${lookup(var.cs_zones, "network")}"
+  count = "${lookup(var.counts, "network")}"
+  name = "kubernetes-network${count.index+1}"
+  display_text = "kubernetes-network${count.index+1}"
+  cidr = "${lookup(var.cs_cidrs, "network")}"
+  network_offering = "${lookup(var.offerings, "network")}"
+  zone = "${lookup(var.cs_zones, "network")}"
+  vpc = "${element(cloudstack_vpc.vpc.*.name, count.index)}"
 }
 
 resource "cloudstack_instance" "kube-master" {
@@ -54,38 +63,30 @@ resource "cloudstack_instance" "kube-worker" {
   keypair = "deployment"
 }
 
-resource "cloudstack_firewall" "firewall" {
-  ipaddress = "${cloudstack_ipaddress.public_ip.0.id}"
+resource "cloudstack_network_acl" "acl" {
+  count = "${lookup(var.counts, "vpc")}"
+  name = "kube-acl-${count.index+1}"
+  vpc = "${element(cloudstack_vpc.vpc.*.id, count.index)}"
+}
+
+resource "cloudstack_network_acl_rule" "acl-rule" {
+  count = "${lookup(var.counts, "vpc")}"
+  aclid = "${element(cloudstack_network_acl.acl.*.id, count.index)}"
 
   rule {
     source_cidr = "84.105.28.192/32"
     protocol = "tcp"
     ports = ["1222","2222","3222", "80","8080","30831","22","6443"]
+    action = "allow"
+    traffic_type = "ingress"
   }
 
    rule {
     source_cidr = "195.66.90.65/24"
     protocol = "tcp"
     ports = ["1222","2222","3222", "80","8080","30831","22","6443"]
-  }
-}
-
-resource "cloudstack_egress_firewall" "egress1" {
-  network = "${cloudstack_network.network.0.name}"
-
-  rule {
-    source_cidr = "0.0.0.0/0"
-    protocol = "tcp"
-    ports = ["1-65535"]
-  }
-  rule {
-    source_cidr = "0.0.0.0/0"
-    protocol = "udp"
-    ports = ["1-65535"]
-  }
-  rule {
-    source_cidr = "0.0.0.0/0"
-    protocol = "icmp"
+    action = "allow"
+    traffic_type = "ingress"
   }
 }
 
@@ -96,40 +97,37 @@ resource "cloudstack_ipaddress" "public_ip" {
   depends_on = ["cloudstack_instance.kube-worker"]
 }
 
-resource "cloudstack_port_forward" "worker-1" {
+resource "cloudstack_port_forward" "worker" {
   ipaddress = "${cloudstack_ipaddress.public_ip.1.id}"
-  depends_on = ["cloudstack_firewall.firewall"]
   depends_on = ["cloudstack_instance.kube-worker"]
 
   forward {
     protocol = "tcp"
     private_port = "22"
     public_port = "22"
-    virtual_machine = "kube-worker-1"
+    virtual_machine = "${cloudstack_instance.kube-worker.0.name}"
   }
 }
 
-resource "cloudstack_port_forward" "ssh_api_server" {
+resource "cloudstack_port_forward" "master" {
   ipaddress = "${cloudstack_ipaddress.public_ip.0.id}"
-  depends_on = ["cloudstack_firewall.firewall"]
-  depends_on = ["cloudstack_instance.kube-master"]
 
   forward {
     protocol = "tcp"
     private_port = "22"
     public_port = "22"
-    virtual_machine = "kube-master-1"
+    virtual_machine = "${cloudstack_instance.kube-master.0.name}"
   }
   forward {
     protocol = "tcp"
     private_port = "8080"
     public_port = "8080"
-    virtual_machine = "kube-master-1"
+    virtual_machine = "${cloudstack_instance.kube-master.0.name}"
   }
   forward {
     protocol = "tcp"
     private_port = "6443"
     public_port = "6443"
-    virtual_machine = "kube-master-1"
+    virtual_machine = "${cloudstack_instance.kube-master.0.name}"
   }
 }
