@@ -36,6 +36,7 @@ resource "cloudstack_network" "network" {
   network_offering = "${lookup(var.offerings, "network")}"
   zone = "${lookup(var.cs_zones, "network")}"
   vpc = "${element(cloudstack_vpc.vpc.*.name, count.index)}"
+  aclid = "${element(cloudstack_network_acl.acl.*.id, count.index)}"
 }
 
 resource "cloudstack_instance" "kube-master" {
@@ -82,7 +83,7 @@ resource "cloudstack_network_acl_rule" "acl-rule" {
   }
 
    rule {
-    source_cidr = "195.66.90.65/24"
+    source_cidr = "195.66.90.0/24"
     protocol = "tcp"
     ports = ["1222","2222","3222", "80","8080","30831","22","6443"]
     action = "allow"
