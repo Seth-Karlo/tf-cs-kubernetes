@@ -1,6 +1,5 @@
 #cloud-config
 
-
 ---
 write-files:
   - path: /etc/conf.d/nfs
@@ -13,7 +12,7 @@ write-files:
       #!/bin/bash
       # [w]ait [u]ntil [p]ort [i]s [a]ctually [o]pen
       [ -n "$1" ] && \
-        until curl -o /dev/null -sIf http://${{1}}; do \
+        until curl -o /dev/null -sIf http://$${1}; do \
           sleep 1 && echo .;
         done;
       exit $?
@@ -102,7 +101,7 @@ coreos:
         --secure-port=6443 \
         --service-cluster-ip-range=10.100.0.0/16 \
         --etcd-servers=http://127.0.0.1:2379 \
-        --public-address-override=${{DEFAULT_IPV4}} \
+        --public-address-override=$${DEFAULT_IPV4} \
         --service-account-key-file=/etc/kubernetes/ssl/apiserver-key.pem \
         --logtostderr=true
         Restart=always

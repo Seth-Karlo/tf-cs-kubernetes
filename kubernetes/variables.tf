@@ -16,8 +16,8 @@ variable "cs_zones" {
 
 variable "offerings" {
   default = {
-    master = "mcc_v1.1vCPU.4GB.SBP1"
-    worker = "mcc_v1.1vCPU.4GB.SBP1"
+    master = "MCC_v2.1vCPU.4GB.SBP1"
+    worker = "MCC_v2.1vCPU.4GB.SBP1"
     network = "MCC-VPC-LB"
     vpc = "MCC-VPC-SBP1"
   }

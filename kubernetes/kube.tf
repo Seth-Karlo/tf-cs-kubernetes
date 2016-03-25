@@ -92,7 +92,7 @@ resource "cloudstack_network_acl_rule" "acl-rule" {
 
 resource "cloudstack_ipaddress" "public_ip" {
   count = "${lookup(var.counts, "public_ip")}"
-  network = "${cloudstack_network.network.0.id}"
+  vpc = "${cloudstack_vpc.vpc.0.id}"
   depends_on = ["cloudstack_instance.kube-master"]
   depends_on = ["cloudstack_instance.kube-worker"]
 }
