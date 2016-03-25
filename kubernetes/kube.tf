@@ -4,25 +4,19 @@ provider "cloudstack" {
     api_url       =  "https://nl2.mcc.schubergphilis.com/client/api"
 }
 
-resource "cloudstack_ssh_keypair" "kubernetes_coreos" {
-  name = "kubernetes_coreos"
-}
-
 resource "template_file" "master-config" {
     count = "${lookup(var.counts, "master")}"
     template = "${file("master.yaml.tpl")}"
     vars {
-      terraform_discovery_url = "${var.discovery_url}"
       terraform_hostname = "kube-master-1"
     }
 }
 
 resource "template_file" "node-config" {
-    count = 2
+    count = "${lookup(var.counts, "worker")}"
     template = "${file("node.yaml.tpl")}"
     vars {
-      terraform_master_ip = "${cloudstack_instance.master.ipaddress}"
-      terraform_discovery_url = "${var.discovery_url}"
+      terraform_master_ip = "${cloudstack_instance.kube-master.0.ipaddress}"
     }
 }
 
@@ -43,8 +37,8 @@ resource "cloudstack_instance" "kube-master" {
   name = "kube-master-${count.index+1}"
   network = "${cloudstack_network.network.0.id}"
   expunge = "true"
-  user_data = "${file("../cloud-config/master.yaml")}"
-  keypair = "kubernetes_coreos"
+  user_data = "${element(template_file.master-config.*.rendered, count.index)}"
+  keypair = "deployment"
 }
 
 resource "cloudstack_instance" "kube-worker" {
@@ -56,8 +50,8 @@ resource "cloudstack_instance" "kube-worker" {
   name = "kube-worker-${count.index+1}"
   network = "${cloudstack_network.network.0.id}"
   expunge = "true"
-  user_data = "${file("../cloud-config/node.yaml")}"
-  keypair = "kubernetes_coreos"
+  user_data = "${element(template_file.node-config.*.rendered, count.index)}"
+  keypair = "deployment"
 }
 
 resource "cloudstack_firewall" "firewall" {

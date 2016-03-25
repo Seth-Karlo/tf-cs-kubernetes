@@ -13,7 +13,7 @@ write-files:
       #!/bin/bash
       # [w]ait [u]ntil [p]ort [i]s [a]ctually [o]pen
       [ -n "$1" ] && \
-        until curl -o /dev/null -sIf http://${1}; do \
+        until curl -o /dev/null -sIf http://${{1}}; do \
           sleep 1 && echo .;
         done;
       exit $?
@@ -90,7 +90,7 @@ coreos:
         ExecStartPre=/usr/bin/chmod +x /opt/bin/kube-apiserver
         ExecStartPre=/opt/bin/wupiao 127.0.0.1:2379/v2/machines
         ExecStart=/opt/bin/kube-apiserver \
-        #--service-account-key-file=/opt/bin/kube-serviceaccount.key \
+        --service-account-key-file=/opt/bin/kube-serviceaccount.key \
         --service-account-lookup=false \
         --admission-control=NamespaceLifecycle,NamespaceAutoProvision,LimitRanger,SecurityContextDeny,ServiceAccount,ResourceQuota \
         --runtime-config=api/v1 \
@@ -102,10 +102,7 @@ coreos:
         --secure-port=6443 \
         --service-cluster-ip-range=10.100.0.0/16 \
         --etcd-servers=http://127.0.0.1:2379 \
-        --public-address-override=192.168.1.10 \
-        --tls-cert-file=/etc/kubernetes/ssl/apiserver.pem \
-        --tls-private-key-file=/etc/kubernetes/ssl/apiserver-key.pem \
-        --client-ca-file=/etc/kubernetes/ssl/ca.pem \
+        --public-address-override=${{DEFAULT_IPV4}} \
         --service-account-key-file=/etc/kubernetes/ssl/apiserver-key.pem \
         --logtostderr=true
         Restart=always
@@ -123,11 +120,9 @@ coreos:
         ExecStartPre=/usr/bin/curl -L -o /opt/bin/kube-controller-manager -z /opt/bin/kube-controller-manager https://storage.googleapis.com/kubernetes-release/release/v1.2.0/bin/linux/amd64/kube-controller-manager
         ExecStartPre=/usr/bin/chmod +x /opt/bin/kube-controller-manager
         ExecStart=/opt/bin/kube-controller-manager \
-        # --service-account-private-key-file=/opt/bin/kube-serviceaccount.key \
+        --service-account-private-key-file=/opt/bin/kube-serviceaccount.key \
         --master=127.0.0.1:8080 \
         --logtostderr=true \
-        --service-account-private-key-file=/etc/kubernetes/ssl/apiserver-key.pem \
-        --root-ca-file=/etc/kubernetes/ssl/ca.pem
         Restart=always
         RestartSec=10
     - name: kube-scheduler.service
