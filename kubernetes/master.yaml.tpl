@@ -102,7 +102,6 @@ coreos:
         --service-cluster-ip-range=10.100.0.0/16 \
         --etcd-servers=http://127.0.0.1:2379 \
         --public-address-override=$${DEFAULT_IPV4} \
-        --service-account-key-file=/etc/kubernetes/ssl/apiserver-key.pem \
         --logtostderr=true
         Restart=always
         RestartSec=10
