@@ -106,7 +106,7 @@ resource "cloudstack_port_forward" "worker" {
     protocol = "tcp"
     private_port = "22"
     public_port = "22"
-    virtual_machine = "${cloudstack_instance.kube-worker.0.name}"
+    virtual_machine = "${cloudstack_instance.kube-worker.0.id}"
   }
 }
 
@@ -117,18 +117,18 @@ resource "cloudstack_port_forward" "master" {
     protocol = "tcp"
     private_port = "22"
     public_port = "22"
-    virtual_machine = "${cloudstack_instance.kube-master.0.name}"
+    virtual_machine = "${cloudstack_instance.kube-master.0.id}"
   }
   forward {
     protocol = "tcp"
     private_port = "8080"
     public_port = "8080"
-    virtual_machine = "${cloudstack_instance.kube-master.0.name}"
+    virtual_machine = "${cloudstack_instance.kube-master.0.id}"
   }
   forward {
     protocol = "tcp"
     private_port = "6443"
     public_port = "6443"
-    virtual_machine = "${cloudstack_instance.kube-master.0.name}"
+    virtual_machine = "${cloudstack_instance.kube-master.0.id}"
   }
 }
